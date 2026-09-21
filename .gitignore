@@ -1,0 +1,26 @@
+# --- .NET ---
+bin/
+obj/
+*.user
+.vs/
+appsettings.Development.json
+
+# --- Node / Expo ---
+node_modules/
+.expo/
+dist/
+web-build/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# --- Gizli bilgiler ---
+.env
+.env.*
+!.env.example
+
+# --- Sistem ---
+.DS_Store
+Thumbs.db
