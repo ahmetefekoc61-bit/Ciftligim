@@ -1,0 +1,5 @@
+bin/
+obj/
+*.http
+Properties/launchSettings.json
+appsettings.Development.json

@@ -11,12 +11,18 @@ public static class JwtSettings
     public const string Issuer = "ciftligim-api";
     public const string Audience = "ciftligim-mobile";
 
-    // İmza anahtarı user-secrets'taki "Jwt:Key" değerinden okunur
+    // İmza anahtarı "Jwt:Key" ayarından okunur (yerelde user-secrets, sunucuda ortam değişkeni).
+    // Base64 değilse ya da kısaysa metnin SHA-256 özeti kullanılır; böylece her türlü uzun rastgele metin çalışır.
     public static SymmetricSecurityKey GetKey(IConfiguration config)
     {
         var key = config["Jwt:Key"]
-            ?? throw new InvalidOperationException("Jwt:Key ayarı bulunamadı. user-secrets ile ekleyin.");
-        return new SymmetricSecurityKey(Convert.FromBase64String(key));
+            ?? throw new InvalidOperationException("Jwt:Key ayarı bulunamadı. user-secrets ya da ortam değişkeni ile ekleyin.");
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(key); }
+        catch (FormatException) { bytes = []; }
+        if (bytes.Length < 32)
+            bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key));
+        return new SymmetricSecurityKey(bytes);
     }
 }
 

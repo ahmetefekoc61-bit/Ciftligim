@@ -8,4 +8,4 @@ public class User
     public string PasswordHash { get; set; } = "";
     public string FullName { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-}
+}    

@@ -1,0 +1,17 @@
+{
+  "name": "ciftligim",
+  "private": true,
+  "description": "Çiftliğim — kısayol komutları. Terminalde kök klasörde: npm run <komut>. (VS Code: Terminal > Görevi Çalıştır > npm)",
+  "scripts": {
+    "durum": "node mobile/scripts/durum.js",
+    "apk": "cd mobile && npx eas-cli@latest build -p android --profile preview --non-interactive --no-wait",
+    "api:calistir": "cd backend\\Ciftligim.Api && dotnet run",
+    "api:durdur": "taskkill /IM Ciftligim.Api.exe /F || exit 0",
+    "api:derle": "cd backend\\Ciftligim.Api && dotnet build",
+    "api:migration": "cd backend\\Ciftligim.Api && dotnet ef migrations add TarimModulu",
+    "api:db": "cd backend\\Ciftligim.Api && dotnet ef database update",
+    "mobil:kur": "cd mobile && npm install",
+    "mobil:kontrol": "cd mobile && npx tsc --noEmit",
+    "mobil:hesap": "cd mobile && npx eas-cli@latest whoami"
+  }
+}

@@ -1,6 +1,162 @@
-@Ciftligim.Api_HostAddress = http://localhost:5029
+# Çiftliğim API — test istekleri
+# VS Code "REST Client" eklentisiyle her isteğin üstündeki "Send Request"e tıkla.
+# Token ve Id'ler önceki cevaplardan OTOMATİK alınır, kopyala-yapıştır gerekmez.
+# Sırayla git: 0 (yalnızca ilk sefer) → 1 → 3 → 5 → 7 ... Sonraki günlerde 1'den başla.
+# Not: Bu dosya Git'e gider; buraya gerçek şifre yazma, aşağıdaki test hesabını kullan.
 
-GET {{Ciftligim.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+@api = http://localhost:5029
+@testEmail = test@ciftligim.local
+@testSifre = Test-f-Grbat9Po5_
 
-###
+@token = {{giris.response.body.token}}
+@farmId = {{isletme.response.body.id}}
+@herdId = {{suru.response.body.id}}
+@animalId = {{hayvan.response.body.id}}
+
+### 0) Test hesabı oluştur (yalnızca ilk sefer; "zaten kayıtlı" derse sorun yok, 1'e geç)
+POST {{api}}/api/auth/register
+Content-Type: application/json
+
+{ "fullName": "Test Kullanıcı", "email": "{{testEmail}}", "password": "{{testSifre}}" }
+
+### 1) Giriş yap (token otomatik alınır)
+# @name giris
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "login": "{{testEmail}}", "password": "{{testSifre}}" }
+
+### 2) Türler ve ırklar
+GET {{api}}/api/species
+Authorization: Bearer {{token}}
+
+### 3) İşletme oluştur
+# @name isletme
+POST {{api}}/api/farms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Gölbaşı Çiftliği" }
+
+### 4) İşletmelerim
+GET {{api}}/api/farms
+Authorization: Bearer {{token}}
+
+### 5) Sürü oluştur
+# @name suru
+POST {{api}}/api/farms/{{farmId}}/herds
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Koyun sürüsü", "notes": "Ana sürü" }
+
+### 6) Sürüler
+GET {{api}}/api/farms/{{farmId}}/herds
+Authorization: Bearer {{token}}
+
+### 7) Hayvan ekle (speciesId 5 = koyun, breedId 1 = Akkaraman)
+# @name hayvan
+POST {{api}}/api/farms/{{farmId}}/animals
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "speciesId": 5,
+  "breedId": 1,
+  "herdId": "{{herdId}}",
+  "earTag": "TR06 1234",
+  "name": "Pamuk",
+  "sex": "female",
+  "birthDate": "2024-03-15",
+  "birthDateEstimated": false
+}
+
+### 8) Hayvan listesi (filtreler isteğe bağlı: herdId, speciesId, status, search)
+GET {{api}}/api/farms/{{farmId}}/animals?search=1234
+Authorization: Bearer {{token}}
+
+### 9) Hayvan profili
+GET {{api}}/api/farms/{{farmId}}/animals/{{animalId}}
+Authorization: Bearer {{token}}
+
+### 10) Küpe ile bul (kamera okutması böyle çalışacak)
+GET {{api}}/api/farms/{{farmId}}/animals/by-tag/TR061234
+Authorization: Bearer {{token}}
+
+### 11) Üye ekle (o kişi önce uygulamaya kayıt olmuş olmalı)
+POST {{api}}/api/farms/{{farmId}}/members
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "login": "coban@mail.com", "role": "shepherd" }
+
+### 12) Üyeler
+GET {{api}}/api/farms/{{farmId}}/members
+Authorization: Bearer {{token}}
+
+### 13) Hayvan satıldı
+POST {{api}}/api/farms/{{farmId}}/animals/{{animalId}}/exit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "sold", "date": "2026-10-21", "notes": "Pazarda satıldı" }
+
+### 14) İşletme özeti (ana ekran)
+GET {{api}}/api/farms/{{farmId}}/summary
+Authorization: Bearer {{token}}
+
+### 15) Tedavi ekle (arınma 21 gün et / 7 gün süt)
+POST {{api}}/api/farms/{{farmId}}/animals/{{animalId}}/treatments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "type": "antiparasitic", "medicineId": "0199a000-0000-7000-8000-000000000001", "dose": 2, "route": "Deri altı", "meatWithdrawalUntil": "2026-11-11", "milkWithdrawalUntil": "2026-10-28" }
+
+### 16) Tartım ekle
+POST {{api}}/api/farms/{{farmId}}/animals/{{animalId}}/weights
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "weightKg": 48.5 }
+
+### 17) Hayvan geçmişi
+GET {{api}}/api/farms/{{farmId}}/animals/{{animalId}}/history
+Authorization: Bearer {{token}}
+
+### 20) Yavrulama (1 yavru, hayvan olarak da ekle)
+POST {{api}}/api/farms/{{farmId}}/animals/{{animalId}}/births
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "birthDate": "2026-10-20", "offspringCount": 1, "aliveCount": 1, "difficulty": "Kolay", "offspring": [ { "sex": "male", "earTag": "TR06 5678", "name": "Kuzu" } ] }
+
+### 18) Arınmadakiler
+GET {{api}}/api/farms/{{farmId}}/withdrawals
+Authorization: Bearer {{token}}
+
+### 19) Sürüyü meraya çıkar
+POST {{api}}/api/farms/{{farmId}}/herds/{{herdId}}/location
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "location": "pasture", "notes": "Sabah merası" }
+
+### 21) Hayvan listesi (konum ve arınma bilgisiyle)
+GET {{api}}/api/farms/{{farmId}}/animals
+Authorization: Bearer {{token}}
+
+### 22) TKGM: iller (kimlikler TKGM'nin kendi numaraları)
+GET {{api}}/api/tkgm/iller
+Authorization: Bearer {{token}}
+
+### 23) TKGM: koordinattaki parsel (haritada dokunma böyle çalışır)
+GET {{api}}/api/tkgm/konum?lat=39.7900&lon=32.8100
+Authorization: Bearer {{token}}
+
+### 24) Ürün listesi
+GET {{api}}/api/crops
+Authorization: Bearer {{token}}
+
+### 25) Tarlalar özeti
+GET {{api}}/api/farms/{{farmId}}/parcels/summary
+Authorization: Bearer {{token}}

@@ -1,0 +1,19 @@
+# Render Blueprint — Çiftliğim API (ücretsiz plan)
+# Veritabanı Neon'da; bağlantı adresi Render panelinde elle girilir (sync: false), Git'e girmez.
+services:
+  - type: web
+    name: ciftligim-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./backend/Ciftligim.Api/Dockerfile
+    dockerContext: ./backend/Ciftligim.Api
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ConnectionStrings__Default
+        sync: false
+      - key: Jwt__Key
+        generateValue: true
+      - key: Database__MigrateOnStartup
+        value: "true"
