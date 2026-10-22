@@ -2,7 +2,7 @@
   "expo": {
     "name": "Çiftliğim",
     "slug": "ciftligim",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "scheme": "ciftligim",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.efekoc.ciftligim",
-      "versionCode": 9,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#131315",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -61,7 +61,8 @@
           "resizeMode": "contain"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/withNoDocumentScanner"
     ],
     "extra": {
       "router": {
