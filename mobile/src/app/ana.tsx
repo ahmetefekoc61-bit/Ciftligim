@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '@/components/theme';
-import { Badge, Button, Muted, Row, Screen } from '@/components/ui';
+import { Badge, Muted, Row, Screen } from '@/components/ui';
 import { roleLabel } from '@/lib/labels';
 import { useSession } from '@/lib/session';
 
@@ -15,7 +15,11 @@ export default function Ana() {
     <Screen>
       <Stack.Screen options={{
         title: farm.name,
-        headerRight: () => <Button title="Değiştir" variant="ghost" onPress={() => router.push('/isletmeler')} style={{ minHeight: 36 }} />,
+        headerRight: () => (
+          <Pressable onPress={() => router.push('/ayarlar')} hitSlop={12} accessibilityLabel="Ayarlar" style={{ paddingHorizontal: 6 }}>
+            <Ionicons name="settings-outline" size={24} color="#fff" />
+          </Pressable>
+        ),
       }} />
       <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
         <Muted>Hoş geldin, {user?.fullName}</Muted>

@@ -1,9 +1,21 @@
-import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { router, Stack } from 'expo-router';
+import { Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/components/theme';
 import { SessionProvider } from '@/lib/session';
 import { useOtaUpdate } from '@/lib/updates';
+
+const NO_HOME = new Set(['index', 'giris', 'isletmeler', 'ana', 'sifre-yenile']);
+
+function HomeButton() {
+  return (
+    <Pressable onPress={() => router.dismissTo('/ana')} hitSlop={12} accessibilityLabel="Ana sayfa" style={{ paddingHorizontal: 6 }}>
+      <Ionicons name="home-outline" size={22} color="#fff" />
+    </Pressable>
+  );
+}
 
 export default function RootLayout() {
   useOtaUpdate();
@@ -12,17 +24,20 @@ export default function RootLayout() {
       <SessionProvider>
         <StatusBar style="light" />
         <Stack
-          screenOptions={{
+          screenOptions={({ route }) => ({
             headerStyle: { backgroundColor: colors.primary },
             headerTintColor: '#fff',
             headerTitleStyle: { fontWeight: '700' },
             contentStyle: { backgroundColor: colors.bg },
-          }}
+            // Derindeki her ekranda sağ üstte "ana sayfa" düğmesi
+            headerRight: NO_HOME.has(route.name) ? undefined : () => <HomeButton />,
+          })}
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="giris" options={{ title: 'Çiftliğim', headerBackVisible: false }} />
           <Stack.Screen name="sifre-yenile" options={{ title: 'Şifremi unuttum' }} />
           <Stack.Screen name="sifre-degistir" options={{ title: 'Şifremi değiştir' }} />
+          <Stack.Screen name="ayarlar" options={{ title: 'Ayarlar' }} />
           <Stack.Screen name="isletmeler" options={{ title: 'İşletmelerim' }} />
           <Stack.Screen name="ana" options={{ title: 'Çiftliğim', headerBackVisible: false }} />
           <Stack.Screen name="tarim" options={{ title: 'Tarım' }} />

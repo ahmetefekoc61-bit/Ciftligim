@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { File as FsFile } from 'expo-file-system';
 import { ocrSupported, recognizeText } from '../../modules/kupe-ocr';
 
 // 1. yol: telefonda ML Kit (internetsiz). 2. yol: sunucuda Tesseract (telefon okuyamazsa).
@@ -15,10 +16,10 @@ async function extractTextFromImage(uri: string): Promise<string[]> {
 }
 
 async function extractTextOnServer(uri: string): Promise<string[]> {
-  const form = new FormData();
-  form.append('image', { uri, name: 'kupe.jpg', type: 'image/jpeg' } as unknown as Blob);
-  const r = await api.upload<{ lines: string[] }>('/api/ocr', form);
-  return r.lines ?? [];
+  // Dosya yükleme (multipart) bazı cihazlarda takılıyor; fotoğrafı metin (base64) olarak gönderiyoruz
+  const image = await new FsFile(uri).base64();
+  const r = await api.post<{ lines: string[] }>('/api/ocr/base64', { image });
+  return r?.lines ?? [];
 }
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -149,8 +150,8 @@ export default function Tara() {
         try {
           let sendUri = cropUri;
           if (!sendUri) {
-            const img = await ImageManipulator.manipulate(photo.uri).resize({ width: 1600 }).renderAsync();
-            sendUri = (await img.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 })).uri;
+            const img = await ImageManipulator.manipulate(photo.uri).resize({ width: 1400 }).renderAsync();
+            sendUri = (await img.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 })).uri;
           }
           setServerReading(true);
           results.push(...await extractTextOnServer(sendUri));

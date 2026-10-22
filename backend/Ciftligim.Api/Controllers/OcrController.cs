@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ciftligim.Api.Controllers;
 
+public record OcrBase64Request(string Image);
+
 // Küpe fotoğrafındaki yazıyı sunucuda okur (Tesseract OCR, Docker imajında kurulu).
 // Telefon kendi okuyamazsa yedek yol olarak kullanılır. Fotoğraf saklanmaz; okunduktan sonra silinir.
 [ApiController]
@@ -20,14 +22,33 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
     {
         if (image is null || image.Length == 0)
             return BadRequest(new { hata = "Fotoğraf gelmedi." });
+        await using var ms = new MemoryStream();
+        await image.CopyToAsync(ms, ct);
+        return await ReadBytes(ms.ToArray(), ct);
+    }
 
+    // POST /api/ocr/base64  { "image": "<base64 jpeg>" }  — telefonda dosya yüklemesi sorun çıkarırsa
+    [HttpPost("base64")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<IActionResult> ReadBase64(OcrBase64Request req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Image)) return BadRequest(new { hata = "Fotoğraf gelmedi." });
+        var b64 = req.Image;
+        var comma = b64.IndexOf(',');
+        if (b64.StartsWith("data:") && comma > 0) b64 = b64[(comma + 1)..];
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(b64); }
+        catch (FormatException) { return BadRequest(new { hata = "Fotoğraf bozuk geldi." }); }
+        return await ReadBytes(bytes, ct);
+    }
+
+    private async Task<IActionResult> ReadBytes(byte[] bytes, CancellationToken ct)
+    {
         var path = Path.Combine(Path.GetTempPath(), $"kupe-{Guid.NewGuid():N}.jpg");
         var temps = new List<string> { path };
         try
         {
-            await using (var fs = System.IO.File.Create(path))
-                await image.CopyToAsync(fs, ct);
-
+            await System.IO.File.WriteAllBytesAsync(path, bytes, ct);
             var lines = new List<string>();
             // Önce görüntüyü temizle (gri, gürültü azalt, kontrast aç, siyah-beyaz yap), sonra oku.
             // İki farklı temizleme × iki okuma modu: silik/eğik küpelerde en az biri genelde tutar.
