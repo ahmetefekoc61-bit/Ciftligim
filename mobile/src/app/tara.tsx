@@ -115,6 +115,7 @@ export default function Tara() {
 
       const results: string[] = [];
       let ocrError: unknown = null;
+      let serverError: unknown = null;
       let cropUri: string | null = null;
 
       // Çerçeve bölgesini kes ve büyüt (önizleme "cover" ile gösterildiği için ölçek hesabı gerekir)
@@ -153,16 +154,19 @@ export default function Tara() {
           }
           setServerReading(true);
           results.push(...await extractTextOnServer(sendUri));
-          ocrError = null;
         } catch (e) {
-          ocrError = ocrError ?? e;
+          serverError = e;
         } finally {
           setServerReading(false);
         }
       }
 
-      if (results.length === 0 && ocrError) {
-        Alert.alert('Yazı okunamadı', `${errorMessage(ocrError)}\n\nNumarayı aşağıdan elle yazabilirsin.`);
+      if (results.length === 0 && (ocrError || serverError)) {
+        const parts = [
+          ocrError ? `Telefon: ${errorMessage(ocrError).slice(0, 160)}` : null,
+          serverError ? `Sunucu: ${errorMessage(serverError)}` : null,
+        ].filter(Boolean);
+        Alert.alert('Yazı okunamadı', `${parts.join('\n\n')}\n\nNumarayı aşağıdan elle yazabilirsin.`);
         return;
       }
 
