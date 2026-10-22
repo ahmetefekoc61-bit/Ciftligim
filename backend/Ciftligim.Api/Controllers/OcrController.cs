@@ -54,10 +54,12 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
             // Hiçbir durumda 500 dönmesin: zaman aşımı/hata olursa o ana kadar okunanı döndür.
             using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
             budget.CancelAfter(TimeSpan.FromSeconds(55));
+            // Kenar boşluğu (border) eklemek kenara yapışık rakamların okunmasını çok iyileştiriyor.
             var attempts = new[]
             {
-                ("a", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-median", "3", "-normalize", "-threshold", "35%" }, "6"),
-                ("c", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-normalize" }, "11"),
+                ("a", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-median", "3", "-normalize", "-threshold", "35%", "-bordercolor", "white", "-border", "40" }, "6"),
+                ("b", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-normalize", "-bordercolor", "white", "-border", "40" }, "11"),
+                ("c", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-median", "3", "-normalize", "-threshold", "50%", "-bordercolor", "white", "-border", "40" }, "11"),
             };
             string? lastError = null;
             foreach (var (name, convertArgs, psm) in attempts)
@@ -71,7 +73,7 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
                     var text = await RunTesseract(pre, psm, budget.Token);
                     if (text is null) return StatusCode(503, new { hata = "Sunucuda yazı okuma kurulu değil." });
                     lines.AddRange(text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-                    if (lines.Any(l => l.Count(char.IsDigit) >= 4)) break;   // numara çıktı, yeter
+                    if (lines.Any(l => l.Count(char.IsDigit) >= 7)) break;   // uzun numara çıktı, yeter
                 }
                 catch (Exception ex)
                 {

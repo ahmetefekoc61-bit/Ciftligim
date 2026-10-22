@@ -40,6 +40,8 @@ type Mode = 'text' | 'barcode';
 
 // Çerçeve: önizleme kutusunun içindeki oran (yazı buraya hizalanır)
 const FRAME = { left: 0.08, right: 0.08, top: 0.3, bottom: 0.3 };
+// Kırpılan alan çerçeveden biraz geniş: kenara taşan rakamlar kesilmesin
+const CROP = { left: 0.02, right: 0.02, top: 0.2, bottom: 0.2 };
 
 // Küpe okutma:
 //  - Yazı modu: fotoğraf çekilir, çerçeve kırpılıp büyütülür, telefonda (internetsiz) ML Kit ile okunur,
@@ -128,10 +130,10 @@ export default function Tara() {
           const scale = Math.max(box.w / photo.width, box.h / photo.height);
           const offX = (photo.width * scale - box.w) / 2;
           const offY = (photo.height * scale - box.h) / 2;
-          const x = Math.max(0, (box.w * FRAME.left + offX) / scale);
-          const y = Math.max(0, (box.h * FRAME.top + offY) / scale);
-          const width = Math.min(photo.width - x, (box.w * (1 - FRAME.left - FRAME.right)) / scale);
-          const height = Math.min(photo.height - y, (box.h * (1 - FRAME.top - FRAME.bottom)) / scale);
+          const x = Math.max(0, (box.w * CROP.left + offX) / scale);
+          const y = Math.max(0, (box.h * CROP.top + offY) / scale);
+          const width = Math.min(photo.width - x, (box.w * (1 - CROP.left - CROP.right)) / scale);
+          const height = Math.min(photo.height - y, (box.h * (1 - CROP.top - CROP.bottom)) / scale);
           const img = await ImageManipulator.manipulate(photo.uri)
             .crop({ originX: Math.round(x), originY: Math.round(y), width: Math.round(width), height: Math.round(height) })
             .resize({ width: 1600 })
