@@ -1,9 +1,10 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { AnimalPicker } from '@/components/AnimalPicker';
-import { Button, Card, Chips, DateField, ErrorBox, Field, Loading, Screen, Section, Toggle } from '@/components/ui';
+import { Button, Card, Chips, DateField, ErrorBox, Field, Loading, Row, Screen, Section, Toggle } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
+import { takeScannedTag } from '@/lib/scanResult';
 import { sexLabel, options, speciesIcon } from '@/lib/labels';
 import { useFarmId } from '@/lib/session';
 import { useQuery } from '@/lib/useQuery';
@@ -55,6 +56,12 @@ export default function HayvanForm() {
   useEffect(() => {
     if (!editId && herds.data?.length === 1 && herdId === null) setHerdId(herds.data[0].id);
   }, [editId, herds.data, herdId]);
+
+  // Küpe okuma ekranından dönünce okunan numarayı al
+  useFocusEffect(useCallback(() => {
+    const t = takeScannedTag();
+    if (t) setEarTag(t);
+  }, []));
 
   const breeds = species.data?.find((sp) => sp.id === speciesId)?.breeds ?? [];
 
@@ -114,7 +121,11 @@ export default function HayvanForm() {
           {breeds.length > 0 && (
             <Chips label="Irk" options={breeds.map((b) => ({ value: b.id, label: b.name }))} value={breedId} onChange={setBreedId} allowNone />
           )}
-          <Field label="Küpe numarası" value={earTag} onChangeText={setEarTag} autoCapitalize="characters" placeholder="ör. TR06 1234" />
+          <Row style={{ alignItems: 'flex-end' }}>
+            <Field half label="Küpe numarası" value={earTag} onChangeText={setEarTag} autoCapitalize="characters" placeholder="ör. TR06 1234" />
+            <Button title="Okut" icon="scan" variant="secondary" style={{ marginBottom: 12 }}
+              onPress={() => router.push({ pathname: '/tara', params: { mode: 'pick' } })} />
+          </Row>
           <Field label="İsim (isteğe bağlı)" value={name} onChangeText={setName} placeholder="ör. Pamuk" />
           <Chips label="Cinsiyet" options={options(sexLabel)} value={sex} onChange={(v) => v && setSex(v)} />
         </Card>

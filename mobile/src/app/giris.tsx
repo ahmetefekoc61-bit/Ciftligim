@@ -1,47 +1,32 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { Image, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { colors } from '@/components/theme';
-import { Button, Card, Chips, ErrorBox, Field, Muted, Row, Screen } from '@/components/ui';
-import { api, errorMessage, normalizeUrl } from '@/lib/api';
-import { useSession } from '@/lib/session';
+import { Button, Card, Chips, ErrorBox, Field, Muted, Screen, s } from '@/components/ui';
+import { api, errorMessage } from '@/lib/api';
+import { CLOUD_URL, useSession } from '@/lib/session';
 import type { AuthResponse } from '@/lib/types';
 
 type Mode = 'login' | 'register';
 
 export default function Giris() {
   const session = useSession();
-  const [server, setServer] = useState(session.serverUrl);
   const [mode, setMode] = useState<Mode>('login');
   const [fullName, setFullName] = useState('');
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => { setServer(session.serverUrl); }, [session.serverUrl]);
-
-  const testServer = async () => {
-    setTesting(true);
-    try {
-      await api.ping(server);
-      await session.setServerUrl(server);
-      Alert.alert('Bağlantı tamam', `Sunucuya ulaşıldı:\n${normalizeUrl(server)}`);
-    } catch (e) {
-      Alert.alert('Bağlanılamadı', errorMessage(e));
-    } finally {
-      setTesting(false);
-    }
-  };
 
   const submit = async () => {
     setError(null);
-    if (!server.trim()) return setError('Önce sunucu adresini girin.');
     if (!login.trim() || !password) return setError('E-posta/telefon ve şifre gerekli.');
     setBusy(true);
     try {
-      await session.setServerUrl(server);
+      const server = CLOUD_URL;
+      if (session.serverUrl !== server) await session.setServerUrl(server);
       const isEmail = login.includes('@');
       const res = mode === 'login'
         ? await api.postTo<AuthResponse>(server, '/api/auth/login', { login: login.trim(), password })
@@ -70,20 +55,6 @@ export default function Giris() {
         </View>
 
         <Card>
-          <Field
-            label="Sunucu adresi"
-            value={server}
-            onChangeText={setServer}
-            placeholder="ör. 192.168.1.35"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            hint="Bulut sunucu adresi ya da evdeki bilgisayarın IP'si. Sunucu uyuyorsa ilk bağlantı 1 dakika kadar sürebilir."
-          />
-          <Button title="Bağlantıyı test et" variant="secondary" icon="wifi" onPress={testServer} loading={testing} />
-        </Card>
-
-        <Card>
           <Chips
             options={[{ value: 'login', label: 'Giriş yap' }, { value: 'register', label: 'Kayıt ol' }]}
             value={mode}
@@ -101,20 +72,42 @@ export default function Giris() {
             keyboardType="email-address"
             placeholder="ornek@mail.com / 05xx..."
           />
-          <Field
-            label="Şifre"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder={mode === 'register' ? 'En az 8 karakter' : ''}
-          />
+          <Text style={s.label}>Şifre</Text>
+          <View style={{ marginBottom: 12, justifyContent: 'center' }}>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={mode === 'register' ? 'En az 8 karakter' : ''}
+              placeholderTextColor="#9AA096"
+              style={[s.input, { paddingRight: 48 }]}
+            />
+            <Pressable
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={10}
+              style={{ position: 'absolute', right: 12, padding: 4 }}
+              accessibilityLabel={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+            >
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.muted} />
+            </Pressable>
+          </View>
           {error && <ErrorBox message={error} />}
           <Button title={mode === 'login' ? 'Giriş yap' : 'Hesap oluştur'} onPress={submit} loading={busy} />
+          {mode === 'login' && (
+            <Button
+              title="Şifremi unuttum"
+              variant="ghost"
+              onPress={() => router.push({ pathname: '/sifre-yenile', params: { email: login.trim() } })}
+              style={{ marginTop: 6 }}
+            />
+          )}
         </Card>
 
-        <Row style={{ justifyContent: 'center' }}>
-          <Muted>Telefon ile bilgisayar aynı Wi-Fi ağında olmalı.</Muted>
-        </Row>
+        <View style={{ alignItems: 'center', marginTop: 24, marginBottom: 8, opacity: 0.9 }}>
+          <Image source={require('../../assets/aek-logo.png')} style={{ width: 150, height: 98 }} resizeMode="contain" />
+        </View>
       </Screen>
     </KeyboardAvoidingView>
   );

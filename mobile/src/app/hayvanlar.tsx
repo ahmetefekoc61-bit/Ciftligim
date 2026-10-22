@@ -1,9 +1,11 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Alert, TextInput, View } from 'react-native';
 import { AnimalRow } from '@/components/AnimalRow';
 import { colors } from '@/components/theme';
-import { Chips, Empty, ErrorBox, Fab, Loading, Muted, Screen, s } from '@/components/ui';
+import { Button, Chips, Empty, ErrorBox, Fab, Loading, Muted, Screen, s } from '@/components/ui';
+import { errorMessage } from '@/lib/api';
+import { exportAnimals, type ExportFormat } from '@/lib/exportList';
 import { options, speciesIcon, statusLabel } from '@/lib/labels';
 import { useFarmId, useSession } from '@/lib/session';
 import { useQuery } from '@/lib/useQuery';
@@ -38,6 +40,23 @@ export default function Hayvanlar() {
 
   const speciesOptions = (species.data ?? []).map((sp) => ({ value: sp.id, label: `${speciesIcon[sp.id] ?? ''} ${sp.name}` }));
   const herdOptions = (herds.data ?? []).map((h) => ({ value: h.id, label: h.name }));
+  const herdName = herdId ? herds.data?.find((h) => h.id === herdId)?.name : undefined;
+  const listTitle = herdName ? `${herdName} sürüsü` : 'Hayvan listesi';
+
+  const [exporting, setExporting] = useState(false);
+  const doExport = async (format: ExportFormat) => {
+    if (filtered.length === 0) return Alert.alert('Liste boş', 'İndirilecek hayvan yok.');
+    setExporting(true);
+    try { await exportAnimals(filtered, listTitle, format); }
+    catch (e) { Alert.alert('İndirilemedi', errorMessage(e)); }
+    finally { setExporting(false); }
+  };
+  const askExport = () =>
+    Alert.alert('Listeyi indir', `${filtered.length} hayvan · ${listTitle}`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'PDF', onPress: () => void doExport('pdf') },
+      { text: 'Excel', onPress: () => void doExport('excel') },
+    ]);
 
   return (
     <Screen
@@ -45,6 +64,10 @@ export default function Hayvanlar() {
       onRefresh={animals.refresh}
       footer={canManage ? <Fab icon="add" label="Hayvan" onPress={() => router.push('/hayvan/form')} /> : undefined}
     >
+      <Stack.Screen options={{
+        title: herdName ?? 'Hayvanlar',
+        headerRight: () => <Button title="İndir" icon="download-outline" variant="ghost" onPress={askExport} loading={exporting} style={{ minHeight: 36 }} />,
+      }} />
       <TextInput
         value={search}
         onChangeText={setSearch}

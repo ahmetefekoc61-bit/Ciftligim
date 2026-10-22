@@ -25,6 +25,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<FarmAccess>();   // işletme/sürü yetki kuralları
+builder.Services.AddScoped<PasswordResetService>();   // şifremi unuttum kodları
+builder.Services.AddHttpClient<EmailSender>(c => c.Timeout = TimeSpan.FromSeconds(15));
 
 // TKGM parsel sorgusu (il/ilçe/mahalle listeleri bellekte saklanır)
 builder.Services.AddMemoryCache();

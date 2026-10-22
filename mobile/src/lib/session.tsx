@@ -23,7 +23,11 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-const KEYS = { server: 'serverUrl', user: 'user', farm: 'farm' };
+const KEYS = { server: 'serverUrl', user: 'user', farm: 'farm', cloudMigrated: 'cloudMigrated' };
+
+// Varsayılan sunucu: Render'daki bulut API'si
+export const CLOUD_URL = 'https://ciftligim-api.onrender.com';
+const isLocalUrl = (u: string) => /^http:\/\/(localhost|\d{1,3}(\.\d{1,3}){3})/i.test(u);
 
 async function readJson<T>(key: string): Promise<T | null> {
   try {
@@ -54,12 +58,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [s, u, f] = await Promise.all([
+      let [s, u, f] = await Promise.all([
         SecureStore.getItemAsync(KEYS.server).catch(() => null),
         readJson<SessionUser>(KEYS.user),
         readJson<SessionFarm>(KEYS.farm),
       ]);
-      setServer(s ?? '');
+      // Bir kerelik geçiş: eski sürümde evdeki bilgisayar adresi kayıtlıysa buluta geç ve yeniden giriş iste
+      const migrated = await SecureStore.getItemAsync(KEYS.cloudMigrated).catch(() => null);
+      if (!migrated) {
+        if (!s || isLocalUrl(s)) {
+          s = CLOUD_URL;
+          u = null; f = null;
+          await SecureStore.setItemAsync(KEYS.server, s);
+          await writeJson(KEYS.user, null);
+          await writeJson(KEYS.farm, null);
+        }
+        await SecureStore.setItemAsync(KEYS.cloudMigrated, '1');
+      }
+      setServer(s ?? CLOUD_URL);
       setUser(u);
       setFarm(u ? f : null);
       setReady(true);

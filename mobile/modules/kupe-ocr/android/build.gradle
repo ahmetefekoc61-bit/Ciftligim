@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.kupeocr'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.kupeocr"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // Latin metin tanıma; model APK içine gömülü (internet/Play Hizmetleri indirmesi gerekmez)
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+}

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Çiftliğim",
     "slug": "ciftligim",
-    "version": "0.2.0",
+    "version": "0.5.0",
     "scheme": "ciftligim",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,9 +13,9 @@
     },
     "android": {
       "package": "com.efekoc.ciftligim",
-      "versionCode": 2,
+      "versionCode": 9,
       "adaptiveIcon": {
-        "backgroundColor": "#2F6B3A",
+        "backgroundColor": "#131315",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -51,7 +51,17 @@
         {
           "locationWhenInUsePermission": "Haritada tarlalarına göre nerede olduğunu göstermek için konum kullanılır."
         }
-      ]
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#131315",
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 288,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "router": {
@@ -63,6 +73,14 @@
         "projectId": "e56e51c7-8140-4cda-b1de-e779076a3be7"
       }
     },
-    "owner": "ahmetefekoc"
+    "owner": "ahmetefekoc",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e56e51c7-8140-4cda-b1de-e779076a3be7",
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

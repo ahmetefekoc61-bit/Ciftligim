@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { Badge, Body, Button, Card, Chips, Empty, ErrorBox, Field, Loading, Muted, Row, Screen, Section } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { useFarmId, useSession } from '@/lib/session';
@@ -15,6 +15,8 @@ export default function Suruler() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+
+  const openHerd = (h: Herd) => router.push({ pathname: '/hayvanlar', params: { herdId: h.id } });
 
   const shepherds = (members.data ?? []).filter((m) => m.role === 'shepherd');
 
@@ -60,6 +62,7 @@ export default function Suruler() {
         (herds.data ?? []).length === 0 ? <Empty icon="albums-outline" title="Henüz sürü yok" hint={canManage ? 'Aşağıdan ilk sürünü oluştur.' : undefined} /> :
         herds.data!.map((h) => (
           <Card key={h.id}>
+            <Pressable onPress={() => openHerd(h)}>
             <Row style={{ justifyContent: 'space-between' }}>
               <Body style={{ fontWeight: '800', fontSize: 18 }}>{h.name}</Body>
               <Badge text={`${h.animalCount} hayvan`} tone="green" />
@@ -68,8 +71,9 @@ export default function Suruler() {
             <Muted style={{ marginTop: 6 }}>
               Çoban: {h.shepherds.length ? h.shepherds.map((s) => s.fullName).join(', ') : 'atanmamış'}
             </Muted>
+            </Pressable>
             <Row style={{ marginTop: 10, flexWrap: 'wrap' }}>
-              <Button title="Hayvanlar" variant="secondary" style={{ flexGrow: 1 }} onPress={() => router.push({ pathname: '/hayvanlar', params: { herdId: h.id } })} />
+              <Button title="Hayvan listesi" icon="list" variant="secondary" style={{ flexGrow: 1 }} onPress={() => openHerd(h)} />
               {canManage && <Button title={editing === h.id ? 'Kapat' : 'Çoban ata'} variant="ghost" onPress={() => setEditing(editing === h.id ? null : h.id)} />}
               {canManage && <Button title="Sil" variant="ghost" onPress={() => remove(h)} />}
             </Row>

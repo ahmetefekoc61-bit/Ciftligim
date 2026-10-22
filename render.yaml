@@ -17,3 +17,9 @@ services:
         generateValue: true
       - key: Database__MigrateOnStartup
         value: "true"
+      - key: Email__BrevoApiKey
+        sync: false
+      - key: Email__From
+        sync: false
+      - key: Email__FromName
+        value: "Çiftliğim"

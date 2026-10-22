@@ -3,8 +3,10 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/components/theme';
 import { SessionProvider } from '@/lib/session';
+import { useOtaUpdate } from '@/lib/updates';
 
 export default function RootLayout() {
+  useOtaUpdate();
   return (
     <SafeAreaProvider>
       <SessionProvider>
@@ -19,6 +21,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="giris" options={{ title: 'Çiftliğim', headerBackVisible: false }} />
+          <Stack.Screen name="sifre-yenile" options={{ title: 'Şifremi unuttum' }} />
           <Stack.Screen name="isletmeler" options={{ title: 'İşletmelerim' }} />
           <Stack.Screen name="ana" options={{ title: 'Çiftliğim', headerBackVisible: false }} />
           <Stack.Screen name="tarim" options={{ title: 'Tarım' }} />

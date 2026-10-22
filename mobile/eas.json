@@ -9,7 +9,9 @@
       "credentialsSource": "local",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview",
+      "environment": "preview"
     }
   }
 }
