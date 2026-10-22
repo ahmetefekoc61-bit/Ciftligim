@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net.Http.Headers;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,7 +13,7 @@ public record OcrBase64Request(string Image);
 [ApiController]
 [Authorize]
 [Route("api/ocr")]
-public class OcrController(ILogger<OcrController> log) : ControllerBase
+public class OcrController(ILogger<OcrController> log, IConfiguration config, IHttpClientFactory httpFactory) : ControllerBase
 {
     private const string Whitelist = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -43,6 +45,84 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
     }
 
     private async Task<IActionResult> ReadBytes(byte[] bytes, CancellationToken ct)
+    {
+        // 1) Bulut OCR (ayarlıysa): Azure AI Vision → OCR.space. Hızlı ve silik yazıda çok daha iyi.
+        foreach (var (engine, reader) in new (string, Func<byte[], CancellationToken, Task<List<string>?>>)[]
+                 { ("azure", ReadAzure), ("ocrspace", ReadOcrSpace) })
+        {
+            try
+            {
+                var cloud = await reader(bytes, ct);
+                if (cloud is not null) return Ok(new { lines = cloud, engine });
+            }
+            catch (Exception ex)
+            {
+                log.LogWarning(ex, "Bulut OCR ({Engine}) başarısız, sıradakine geçiliyor", engine);
+            }
+        }
+        // 2) Yedek: sunucudaki Tesseract
+        return await ReadTesseract(bytes, ct);
+    }
+
+    // Azure AI Vision — Image Analysis 4.0 "read" (ücretsiz F0: ayda 5.000 okuma)
+    private async Task<List<string>?> ReadAzure(byte[] bytes, CancellationToken ct)
+    {
+        var endpoint = config["Ocr:AzureEndpoint"]?.TrimEnd('/');
+        var key = config["Ocr:AzureKey"];
+        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(key)) return null;
+
+        using var http = httpFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(20);
+        using var req = new HttpRequestMessage(HttpMethod.Post,
+            $"{endpoint}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=read");
+        req.Headers.Add("Ocp-Apim-Subscription-Key", key);
+        req.Content = new ByteArrayContent(bytes);
+        req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        using var res = await http.SendAsync(req, ct);
+        var json = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException($"Azure {(int)res.StatusCode}: {json}");
+
+        var lines = new List<string>();
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("readResult", out var rr) && rr.TryGetProperty("blocks", out var blocks))
+            foreach (var b in blocks.EnumerateArray())
+                if (b.TryGetProperty("lines", out var ls))
+                    foreach (var l in ls.EnumerateArray())
+                        if (l.TryGetProperty("text", out var t) && t.GetString() is { Length: > 0 } s) lines.Add(s);
+        return lines;
+    }
+
+    // OCR.space (ücretsiz anahtar: ayda 25.000 okuma, dosya en fazla 1 MB)
+    private async Task<List<string>?> ReadOcrSpace(byte[] bytes, CancellationToken ct)
+    {
+        var key = config["Ocr:OcrSpaceKey"];
+        if (string.IsNullOrWhiteSpace(key)) return null;
+
+        using var http = httpFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(30);
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(key), "apikey" },
+            { new StringContent("2"), "OCREngine" },
+            { new StringContent("true"), "scale" },
+            { new StringContent("data:image/jpeg;base64," + Convert.ToBase64String(bytes)), "base64Image" },
+        };
+        using var res = await http.PostAsync("https://api.ocr.space/parse/image", form, ct);
+        var json = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException($"OCR.space {(int)res.StatusCode}: {json}");
+
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("IsErroredOnProcessing", out var err) && err.ValueKind == JsonValueKind.True)
+            throw new InvalidOperationException($"OCR.space hata: {json}");
+        var lines = new List<string>();
+        if (doc.RootElement.TryGetProperty("ParsedResults", out var pr))
+            foreach (var r in pr.EnumerateArray())
+                if (r.TryGetProperty("ParsedText", out var t) && t.GetString() is { } text)
+                    lines.AddRange(text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return lines;
+    }
+
+    private async Task<IActionResult> ReadTesseract(byte[] bytes, CancellationToken ct)
     {
         var path = Path.Combine(Path.GetTempPath(), $"kupe-{Guid.NewGuid():N}.jpg");
         var temps = new List<string> { path };
@@ -83,7 +163,7 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
             }
             if (lines.Count == 0 && lastError is not null)
                 return StatusCode(504, new { hata = "Sunucu yazıyı zamanında okuyamadı. Küpeyi çerçeveye yaklaştırıp tekrar dene." });
-            return Ok(new { lines = lines.Distinct().ToList() });
+            return Ok(new { lines = lines.Distinct().ToList(), engine = "tesseract" });
         }
         finally
         {

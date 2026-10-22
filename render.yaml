@@ -23,3 +23,9 @@ services:
         sync: false
       - key: Email__FromName
         value: "Çiftliğim"
+      - key: Ocr__AzureEndpoint
+        sync: false
+      - key: Ocr__AzureKey
+        sync: false
+      - key: Ocr__OcrSpaceKey
+        sync: false

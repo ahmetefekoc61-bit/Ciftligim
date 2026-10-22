@@ -15,17 +15,22 @@ async function extractTextFromImage(uri: string): Promise<string[]> {
   return out.length ? out : (r?.text ? [r.text] : []);
 }
 
+// Telefonun okuyucusu bu cihazda bir kez hata verirse oturum boyunca bir daha denenmez (zaman kaybı olmasın)
+let nativeBroken = false;
+let lastEngine = '';
+
 async function extractTextOnServer(uri: string): Promise<string[]> {
   // Dosya yükleme (multipart) bazı cihazlarda takılıyor; fotoğrafı metin (base64) olarak gönderiyoruz
   // Sunucu yavaş: 1000 px yeterli, gönderim de küçülür
   const small = await (await ImageManipulator.manipulate(uri).resize({ width: 1000 }).renderAsync())
     .saveAsync({ format: SaveFormat.JPEG, compress: 0.85 });
   const image = await new FsFile(small.uri).base64();
-  const r = await api.post<{ lines: string[] }>('/api/ocr/base64', { image });
+  const r = await api.post<{ lines: string[]; engine?: string }>('/api/ocr/base64', { image });
+  lastEngine = r?.engine ?? '';
   return r?.lines ?? [];
 }
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { animalTitle } from '@/components/AnimalRow';
 import { colors } from '@/components/theme';
 import { Badge, Body, Button, Card, Chips, Field, ListItem, Muted, Row, Screen, Section } from '@/components/ui';
@@ -61,6 +66,7 @@ export default function Tara() {
   const [manual, setManual] = useState('');
   const [candidates, setCandidates] = useState<string[]>([]);
   const [rawText, setRawText] = useState<string>('');
+  const [diag, setDiag] = useState<{ crop: string | null; phone: string; server: string } | null>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const camera = useRef<CameraView>(null);
   const locked = useRef(false);
@@ -107,7 +113,7 @@ export default function Tara() {
   // Fotoğraf çek → çerçeveyi kırp, büyüt → oku
   const readText = async () => {
     if (!camera.current) return;
-    setBusy(true); setCandidates([]); setRawText('');
+    setBusy(true); setCandidates([]); setRawText(''); setDiag(null);
     try {
       let photo: { uri: string; width: number; height: number };
       try {
@@ -143,12 +149,20 @@ export default function Tara() {
       } catch { cropUri = null; }
 
       // 1) Telefonda oku (çerçeve, sonra tüm fotoğraf)
-      if (ocrSupported) {
+      const t0 = Date.now();
+      let phoneInfo = 'denenmedi';
+      if (ocrSupported && !nativeBroken) {
+        let n = 0;
         for (const u of [cropUri, photo.uri]) {
           if (!u) continue;
-          try { results.push(...await extractTextFromImage(u)); } catch (e) { ocrError = ocrError ?? e; }
+          try { const r = await extractTextFromImage(u); n += r.length; results.push(...r); } catch (e) { ocrError = ocrError ?? e; }
         }
+        phoneInfo = ocrError ? `hata: ${errorMessage(ocrError).slice(0, 200)}` : `${n} satır · ${((Date.now() - t0) / 1000).toFixed(1)} sn`;
+        if (ocrError && n === 0) { nativeBroken = true; ocrError = null; }
+      } else if (nativeBroken) {
+        phoneInfo = 'bu cihazda çalışmıyor, atlandı';
       }
+      let serverInfo = 'gerek kalmadı';
 
       // 2) Telefon okuyamadıysa (ya da numara çıkmadıysa) fotoğrafı sunucuya gönder
       if (extractCandidates(results).length === 0) {
@@ -159,13 +173,19 @@ export default function Tara() {
             sendUri = (await img.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 })).uri;
           }
           setServerReading(true);
-          results.push(...await extractTextOnServer(sendUri));
+          const t1 = Date.now();
+          const r = await extractTextOnServer(sendUri);
+          results.push(...r);
+          serverInfo = `${r.length} satır · ${((Date.now() - t1) / 1000).toFixed(1)} sn${lastEngine ? ` · ${lastEngine}` : ''}`;
         } catch (e) {
           serverError = e;
+          serverInfo = `hata: ${errorMessage(e)}`;
         } finally {
           setServerReading(false);
         }
       }
+
+      setDiag({ crop: cropUri, phone: phoneInfo, server: serverInfo });
 
       if (results.length === 0 && (ocrError || serverError)) {
         const parts = [
@@ -180,7 +200,7 @@ export default function Tara() {
       setRawText(results.join(' · ').slice(0, 300));
       setCandidates(c);
       if (c.length === 0) {
-        Alert.alert('Numara okunamadı', 'Küpeyi çerçeveye yaklaştırıp tekrar dene. Karanlıksa feneri aç, parlıyorsa açıyı biraz değiştir.');
+        Alert.alert('Numara okunamadı', `Telefon: ${phoneInfo}\nSunucu: ${serverInfo}\n\nAşağıdaki "Son okuma" kutusunda okunan bölgeyi görebilirsin.`);
       }
     } finally {
       setBusy(false);
@@ -263,6 +283,19 @@ export default function Tara() {
               ))}
             </Row>
             {!!rawText && <Muted style={{ marginTop: 8, fontSize: 12 }}>Görülen yazı: {rawText}</Muted>}
+          </Card>
+        </Section>
+      )}
+
+      {diag && (
+        <Section title="Son okuma (teşhis)">
+          <Card>
+            {diag.crop ? (
+              <Image source={{ uri: diag.crop }} style={{ width: '100%', height: 120, borderRadius: 8, backgroundColor: '#000' }} resizeMode="contain" />
+            ) : <Muted>Kırpma yapılamadı, tüm fotoğraf kullanıldı.</Muted>}
+            <Muted style={{ marginTop: 8, fontSize: 12 }}>Telefon: {diag.phone}</Muted>
+            <Muted style={{ fontSize: 12 }}>Sunucu: {diag.server}</Muted>
+            {!!rawText && <Muted style={{ fontSize: 12 }}>Görülen yazı: {rawText}</Muted>}
           </Card>
         </Section>
       )}
