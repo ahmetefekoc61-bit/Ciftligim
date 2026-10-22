@@ -4,6 +4,7 @@
   "description": "Çiftliğim — kısayol komutları. Terminalde kök klasörde: npm run <komut>. (VS Code: Terminal > Görevi Çalıştır > npm)",
   "scripts": {
     "0-hepsini-yayinla": "node scripts/hepsini-yayinla.js",
+    "0-kod-gonder-guncelle": "set MSG=Kupe okuma sunucu yedegi&& node scripts/hepsini-yayinla.js --guncelle",
     "yeni-apk": "cd mobile && npm install && npx eas-cli@latest build -p android --profile preview --non-interactive --no-wait",
     "guncelle": "cd mobile && npx eas-cli@latest update --channel preview --environment preview --platform android --message \"guncelleme\" --non-interactive",
     "durum": "node mobile/scripts/durum.js",

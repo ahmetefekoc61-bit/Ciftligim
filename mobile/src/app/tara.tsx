@@ -3,7 +3,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ocrSupported, recognizeText } from '../../modules/kupe-ocr';
 
-// ML Kit metin tanıma (projedeki yerel modül; model APK içinde, internet gerekmez).
+// 1. yol: telefonda ML Kit (internetsiz). 2. yol: sunucuda Tesseract (telefon okuyamazsa).
 async function extractTextFromImage(uri: string): Promise<string[]> {
   const r = await recognizeText(uri);
   const out: string[] = [];
@@ -12,6 +12,13 @@ async function extractTextFromImage(uri: string): Promise<string[]> {
     for (const l of b.lines ?? []) out.push(l);
   }
   return out.length ? out : (r?.text ? [r.text] : []);
+}
+
+async function extractTextOnServer(uri: string): Promise<string[]> {
+  const form = new FormData();
+  form.append('image', { uri, name: 'kupe.jpg', type: 'image/jpeg' } as unknown as Blob);
+  const r = await api.upload<{ lines: string[] }>('/api/ocr', form);
+  return r.lines ?? [];
 }
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -41,9 +48,10 @@ export default function Tara() {
   const farmId = useFarmId();
   const { canManage } = useSession();
   const [permission, requestPermission] = useCameraPermissions();
-  const [mode, setMode] = useState<Mode>(ocrSupported ? 'text' : 'barcode');
+  const [mode, setMode] = useState<Mode>('text');
   const [torch, setTorch] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [serverReading, setServerReading] = useState(false);
   const [manual, setManual] = useState('');
   const [candidates, setCandidates] = useState<string[]>([]);
   const [rawText, setRawText] = useState<string>('');
@@ -107,8 +115,9 @@ export default function Tara() {
 
       const results: string[] = [];
       let ocrError: unknown = null;
+      let cropUri: string | null = null;
 
-      // 1) Çerçeve bölgesi (önizleme "cover" ile gösterildiği için ölçek hesabı gerekir)
+      // Çerçeve bölgesini kes ve büyüt (önizleme "cover" ile gösterildiği için ölçek hesabı gerekir)
       try {
         if (box.w > 0 && box.h > 0 && photo.width > 0 && photo.height > 0) {
           const scale = Math.max(box.w / photo.width, box.h / photo.height);
@@ -120,20 +129,40 @@ export default function Tara() {
           const height = Math.min(photo.height - y, (box.h * (1 - FRAME.top - FRAME.bottom)) / scale);
           const img = await ImageManipulator.manipulate(photo.uri)
             .crop({ originX: Math.round(x), originY: Math.round(y), width: Math.round(width), height: Math.round(height) })
-            .resize({ width: 1600 })        // küçük yazıyı büyüt: tanıma doğruluğu artar
+            .resize({ width: 1600 })
             .renderAsync();
-          const saved = await img.saveAsync({ format: SaveFormat.JPEG, compress: 1 });
-          results.push(...await extractTextFromImage(saved.uri));
+          cropUri = (await img.saveAsync({ format: SaveFormat.JPEG, compress: 0.9 })).uri;
         }
-      } catch (e) { ocrError = e; }
+      } catch { cropUri = null; }
 
-      // 2) Fotoğrafın tamamı (fotoğraf döndürülmüşse ya da küpe çerçeve dışında kaldıysa)
-      try {
-        results.push(...await extractTextFromImage(photo.uri));
-      } catch (e) { ocrError = ocrError ?? e; }
+      // 1) Telefonda oku (çerçeve, sonra tüm fotoğraf)
+      if (ocrSupported) {
+        for (const u of [cropUri, photo.uri]) {
+          if (!u) continue;
+          try { results.push(...await extractTextFromImage(u)); } catch (e) { ocrError = ocrError ?? e; }
+        }
+      }
+
+      // 2) Telefon okuyamadıysa (ya da numara çıkmadıysa) fotoğrafı sunucuya gönder
+      if (extractCandidates(results).length === 0) {
+        try {
+          let sendUri = cropUri;
+          if (!sendUri) {
+            const img = await ImageManipulator.manipulate(photo.uri).resize({ width: 1600 }).renderAsync();
+            sendUri = (await img.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 })).uri;
+          }
+          setServerReading(true);
+          results.push(...await extractTextOnServer(sendUri));
+          ocrError = null;
+        } catch (e) {
+          ocrError = ocrError ?? e;
+        } finally {
+          setServerReading(false);
+        }
+      }
 
       if (results.length === 0 && ocrError) {
-        Alert.alert('Yazı okunamadı', `Tanıma hatası: ${errorMessage(ocrError)}\n\nNumarayı aşağıdan elle yazabilirsin.`);
+        Alert.alert('Yazı okunamadı', `${errorMessage(ocrError)}\n\nNumarayı aşağıdan elle yazabilirsin.`);
         return;
       }
 
@@ -156,7 +185,7 @@ export default function Tara() {
 
       <Chips
         options={[
-          ...(ocrSupported ? [{ value: 'text' as Mode, label: '🔤 Yazıyı oku' }] : []),
+          { value: 'text' as Mode, label: '🔤 Yazıyı oku' },
           { value: 'barcode', label: '▦ Barkod / QR' },
         ]}
         value={mode}
@@ -186,7 +215,7 @@ export default function Tara() {
               <Pressable onPress={() => setTorch((t) => !t)} style={st.torch}>
                 <Text style={{ fontSize: 22 }}>{torch ? '🔦' : '💡'}</Text>
               </Pressable>
-              {busy && <View style={st.busy}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: '#fff', marginTop: 8 }}>Okunuyor…</Text></View>}
+              {busy && <View style={st.busy}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: '#fff', marginTop: 8, textAlign: 'center' }}>{serverReading ? 'Sunucuda okunuyor…\n(ilk seferde 1 dk sürebilir)' : 'Okunuyor…'}</Text></View>}
             </View>
             {mode === 'text' ? (
               <>
@@ -242,7 +271,6 @@ export default function Tara() {
           <Button title={pickMode ? 'Bunu kullan' : 'Bul'} icon={pickMode ? 'checkmark' : 'search'} onPress={() => choose(manual)} loading={busy} />
         </Card>
       </Section>
-      {!ocrSupported && <Body>Bu cihazda yazı okuma desteklenmiyor; barkod ya da elle giriş kullan.</Body>}
     </Screen>
   );
 }

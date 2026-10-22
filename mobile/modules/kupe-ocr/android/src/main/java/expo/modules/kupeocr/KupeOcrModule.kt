@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.ExifInterface
 import android.net.Uri
+import com.google.mlkit.common.sdkinternal.MlKitContext
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -73,6 +74,12 @@ class KupeOcrModule : Module() {
     return Pair(bitmap, rotation)
   }
 
+  /** Hata mesajına nerede patladığını ekler (ilk birkaç satır) — uzaktan teşhis için */
+  private fun describe(e: Throwable): String {
+    val where = e.stackTrace.take(4).joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+    return "${e.message ?: e.javaClass.simpleName} [$where]"
+  }
+
   override fun definition() = ModuleDefinition {
     Name("KupeOcr")
 
@@ -83,12 +90,15 @@ class KupeOcrModule : Module() {
         return@AsyncFunction
       }
 
+      // ML Kit'in kendi başlatıcısı bazı cihazlarda çalışmamış olabilir: gerekirse elle başlat
+      try { MlKitContext.initializeIfNeeded(context) } catch (ignored: Throwable) { }
+
       val image: InputImage
       try {
         val (bitmap, rotation) = loadBitmap(context, uri)
         image = InputImage.fromBitmap(bitmap, rotation)
       } catch (e: Throwable) {
-        promise.reject("E_IMAGE", "Görüntü açılamadı: ${e.message ?: e.javaClass.simpleName}", e)
+        promise.reject("E_IMAGE", "Görüntü açılamadı: ${describe(e)}", e)
         return@AsyncFunction
       }
 
@@ -104,10 +114,10 @@ class KupeOcrModule : Module() {
             promise.resolve(mapOf("text" to result.text, "blocks" to blocks))
           }
           .addOnFailureListener { e ->
-            promise.reject("E_OCR", "Tanıma hatası: ${e.message ?: e.javaClass.simpleName}", e)
+            promise.reject("E_OCR", "Tanıma hatası: ${describe(e)}", e)
           }
       } catch (e: Throwable) {
-        promise.reject("E_OCR", "Tanıma başlatılamadı: ${e.message ?: e.javaClass.simpleName}", e)
+        promise.reject("E_OCR", "Tanıma başlatılamadı: ${describe(e)}", e)
       }
     }
 

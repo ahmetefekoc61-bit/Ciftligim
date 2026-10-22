@@ -22,9 +22,13 @@ export function extractCandidates(blocks: string[]): string[] {
   const text = blocks.join('\n').toUpperCase().replace(/[^\S\n]+/g, ' ');
 
   // 1) "TR" ile başlayan numaralar: TR 06 123 4567 gibi; TR'den sonraki karakterleri rakama zorla
-  for (const m of text.matchAll(/T\s?[RK]\s?([0-9OQDILZSBGAE| ]{4,20})/g)) {
-    const d = digitsOnly(m[1].replace(/\s/g, ''));
-    if (d.length >= 4) push(`TR${d}`);
+  //    Satırlar ayrı okunmuş olabilir ("TR 06" / "0612345678"): birleşik metinde de ara.
+  const joined = text.replace(/\n/g, ' ');
+  for (const src of [text, joined]) {
+    for (const m of src.matchAll(/T?\s?[RK]\s?([0-9OQDILZSBGAE| ]{4,20})/g)) {
+      const d = digitsOnly(m[1].replace(/\s/g, ''));
+      if (d.length >= 4) push(`TR${d}`);
+    }
   }
   // 2) Satırlardaki uzun rakam grupları (boşluklarla bölünmüş olabilir)
   for (const line of text.split('\n')) {
@@ -74,6 +78,8 @@ export function matchTags<T>(candidates: string[], items: T[], getTag: (t: T) =>
         const m = Math.min(d, dd);
         if (m === 1 && tagDigits.length >= 5) { score = 90; label = '1 karakter farklı'; }
         else if (cDigits.length >= 5 && tagDigits.endsWith(cDigits)) { score = 80; label = 'Son rakamlar tutuyor'; }
+        else if (cDigits.length >= 6 && tagDigits.length > cDigits.length &&
+                 levenshtein(cDigits, tagDigits.slice(-cDigits.length)) <= 1) { score = 78; label = 'Son rakamlar benziyor'; }
         else if (m === 2 && tagDigits.length >= 8) { score = 75; label = '2 karakter farklı'; }
         else if (cDigits.length >= 6 && tagDigits.length >= 6 && cDigits.slice(-6) === tagDigits.slice(-6)) { score = 72; label = 'Son 6 rakam tutuyor'; }
       }

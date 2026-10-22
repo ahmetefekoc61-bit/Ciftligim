@@ -82,7 +82,36 @@ async function request<T>(method: string, path: string, body?: unknown, baseOver
   return data as T;
 }
 
+/** Fotoğraf gibi dosya gönderimi (multipart/form-data). */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  if (!state.baseUrl) throw new ApiError('Sunucu adresi girilmemiş.', 0);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  let res: Response;
+  try {
+    res = await fetch(`${state.baseUrl}${path}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}) },
+      body: form,
+      signal: controller.signal,
+    });
+  } catch {
+    throw new ApiError('Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.', 0);
+  } finally {
+    clearTimeout(timer);
+  }
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    if (res.status === 401 && state.token) state.onUnauthorized();
+    throw new ApiError(String((data && data.hata) || `Sunucu hatası (${res.status}).`), res.status);
+  }
+  return data as T;
+}
+
 export const api = {
+  upload,
   get: <T>(path: string) => request<T>('GET', path),
   post: <T = unknown>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   put: <T = unknown>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {}),

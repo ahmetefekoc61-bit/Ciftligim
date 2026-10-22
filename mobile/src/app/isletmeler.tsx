@@ -7,6 +7,8 @@ import { roleLabel } from '@/lib/labels';
 import { useSession } from '@/lib/session';
 import { useQuery } from '@/lib/useQuery';
 import type { Farm } from '@/lib/types';
+import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 
 export default function Isletmeler() {
   const session = useSession();
@@ -73,6 +75,13 @@ export default function Isletmeler() {
           <Button title="Oluştur" icon="add-circle-outline" onPress={create} loading={busy} />
         </Card>
       </Section>
+      <Muted style={{ textAlign: 'center', marginTop: 16, fontSize: 12 }}>
+        Sürüm {Constants.expoConfig?.version ?? '?'}
+        {Updates.isEnabled && !Updates.isEmbeddedLaunch && Updates.createdAt
+          ? ` · güncelleme ${Updates.createdAt.toLocaleDateString('tr-TR')} ${Updates.createdAt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`
+          : ''}
+        {' · AEK Software'}
+      </Muted>
     </Screen>
   );
 }
