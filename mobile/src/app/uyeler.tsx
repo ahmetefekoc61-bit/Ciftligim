@@ -50,6 +50,25 @@ export default function Uyeler() {
       },
     ]);
 
+  const resetPassword = (m: Member) =>
+    Alert.alert('Şifreyi sıfırla', `${m.fullName} için geçici şifre oluşturulsun mu? Eski şifresi çalışmaz olur.`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      {
+        text: 'Sıfırla', style: 'destructive', onPress: async () => {
+          try {
+            const r = await api.post<{ geciciSifre: string }>(`/api/farms/${farmId}/members/${m.userId}/reset-password`);
+            setSelected(null);
+            Alert.alert(
+              'Geçici şifre',
+              `${m.fullName} için yeni şifre:\n\n${r.geciciSifre}\n\nBunu kendisine ilet. Giriş yaptıktan sonra "Şifremi değiştir" ekranından kendi şifresini belirlesin.`,
+            );
+          } catch (e) {
+            Alert.alert('Sıfırlanamadı', errorMessage(e));
+          }
+        },
+      },
+    ]);
+
   return (
     <Screen refreshing={q.refreshing} onRefresh={q.refresh}>
       {q.loading ? <Loading /> : q.error ? <ErrorBox message={q.error} onRetry={q.reload} /> :
@@ -65,6 +84,7 @@ export default function Uyeler() {
                 <>
                   <Chips label="Yeni rol" options={assignable.map((r) => ({ value: r, label: roleLabel[r] }))} value={m.role} onChange={(v) => v && v !== m.role && changeRole(m, v)} />
                   <Row>
+                    <Button title="Şifre sıfırla" icon="key-outline" variant="secondary" style={{ flex: 1 }} onPress={() => resetPassword(m)} />
                     <Button title="Üyeyi çıkar" variant="danger" style={{ flex: 1 }} onPress={() => remove(m)} />
                     <Button title="Kapat" variant="ghost" onPress={() => setSelected(null)} />
                   </Row>

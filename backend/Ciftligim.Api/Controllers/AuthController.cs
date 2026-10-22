@@ -14,6 +14,7 @@ public record LoginRequest(string Login, string Password);   // Login = e-posta 
 public record AuthResponse(string Token, Guid UserId, string FullName);
 public record ForgotPasswordRequest(string Email);
 public record ResetPasswordRequest(string Email, string Code, string NewPassword);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 [ApiController]
 [Route("api/auth")]
@@ -123,6 +124,24 @@ public class AuthController(AppDbContext db, IPasswordHasher<User> hasher, Token
         user.PasswordHash = hasher.HashPassword(user, req.NewPassword);
         await db.SaveChangesAsync(ct);
         return new AuthResponse(tokens.Create(user), user.Id, user.FullName);
+    }
+
+    // POST /api/auth/change  → giriş yapmış kullanıcı kendi şifresini değiştirir
+    [Authorize]
+    [HttpPost("change")]
+    public async Task<IActionResult> Change(ChangePasswordRequest req, CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var userId)) return Unauthorized();
+        var user = await db.Users.FindAsync([userId], ct);
+        if (user is null) return Unauthorized();
+        if (hasher.VerifyHashedPassword(user, user.PasswordHash, req.CurrentPassword ?? "") == PasswordVerificationResult.Failed)
+            return BadRequest(new { hata = "Mevcut şifre hatalı." });
+        if (req.NewPassword is null || req.NewPassword.Length < 8)
+            return BadRequest(new { hata = "Yeni şifre en az 8 karakter olmalı." });
+
+        user.PasswordHash = hasher.HashPassword(user, req.NewPassword);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     // GET /api/auth/me  → token'ı gönderen kullanıcının bilgileri (giriş zorunlu)

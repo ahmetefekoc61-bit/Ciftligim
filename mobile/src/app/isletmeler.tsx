@@ -63,6 +63,10 @@ export default function Isletmeler() {
           )}
       </Section>
 
+      <Section title="Hesabım">
+        <ListItem title="Şifremi değiştir" subtitle={session.user?.fullName ?? ''} onPress={() => router.push('/sifre-degistir')} />
+      </Section>
+
       <Section title="Yeni işletme">
         <Card>
           <Field label="İşletme adı" value={name} onChangeText={setName} placeholder="ör. Gölbaşı Çiftliği" />

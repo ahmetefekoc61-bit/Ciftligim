@@ -2,6 +2,7 @@ using Ciftligim.Api.Auth;
 using Ciftligim.Api.Data;
 using Ciftligim.Api.Entities;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,7 @@ public record MemberDto(Guid UserId, string FullName, string? Email, string? Pho
 [ApiController]
 [Authorize]
 [Route("api/farms")]
-public class FarmsController(AppDbContext db, FarmAccess access) : ControllerBase
+public class FarmsController(AppDbContext db, FarmAccess access, IPasswordHasher<User> hasher) : ControllerBase
 {
     // GET /api/farms  → üye olduğum işletmeler
     [HttpGet]
@@ -156,6 +157,42 @@ public class FarmsController(AppDbContext db, FarmAccess access) : ControllerBas
         db.FarmMembers.Remove(member);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // POST /api/farms/{farmId}/members/{userId}/reset-password  → üyeye geçici şifre verir
+    //   Güvenlik: yalnızca o rol üzerinde yetkili olan sahip/yönetici yapabilir; hedef kişi başka
+    //   bir işletmenin sahibi ya da senin sahibi olmadığın başka bir işletmenin üyesiyse izin verilmez.
+    [HttpPost("{farmId:guid}/members/{userId:guid}/reset-password")]
+    public async Task<IActionResult> ResetMemberPassword(Guid farmId, Guid userId)
+    {
+        var me = User.GetUserId();
+        var myRole = await access.GetRoleAsync(farmId, me);
+        if (myRole is null) return NotFound(new { hata = "İşletme bulunamadı." });
+        if (userId == me) return BadRequest(new { hata = "Kendi şifreni 'Şifremi değiştir' ekranından değiştir." });
+
+        var member = await db.FarmMembers.FindAsync(farmId, userId);
+        if (member is null) return NotFound(new { hata = "Üye bulunamadı." });
+        if (!CanAssignRole(myRole.Value, member.Role))
+            return Forbidden("Bu üyenin şifresini sıfırlamaya yetkiniz yok.");
+
+        var otherMemberships = await db.FarmMembers
+            .Where(m => m.UserId == userId && m.FarmId != farmId)
+            .Select(m => new
+            {
+                m.Role,
+                IOwnIt = db.FarmMembers.Any(x => x.FarmId == m.FarmId && x.UserId == me && x.Role == MemberRole.Owner),
+            })
+            .ToListAsync();
+        if (otherMemberships.Any(o => o.Role == MemberRole.Owner || !o.IOwnIt))
+            return Forbidden("Bu kişi başka işletmelerde de üye; şifresini yalnızca kendisi 'Şifremi unuttum' ile yenileyebilir.");
+
+        var user = await db.Users.FindAsync(userId);
+        if (user is null) return NotFound(new { hata = "Kullanıcı bulunamadı." });
+
+        var temp = System.Security.Cryptography.RandomNumberGenerator.GetString("abcdefghjkmnpqrstuvwxyz23456789", 8);
+        user.PasswordHash = hasher.HashPassword(user, temp);
+        await db.SaveChangesAsync();
+        return Ok(new { geciciSifre = temp });
     }
 
     // Kim hangi rolü verebilir? Sahiplik devri şimdilik yok.

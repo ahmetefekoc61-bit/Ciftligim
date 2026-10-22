@@ -22,6 +22,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="giris" options={{ title: 'Çiftliğim', headerBackVisible: false }} />
           <Stack.Screen name="sifre-yenile" options={{ title: 'Şifremi unuttum' }} />
+          <Stack.Screen name="sifre-degistir" options={{ title: 'Şifremi değiştir' }} />
           <Stack.Screen name="isletmeler" options={{ title: 'İşletmelerim' }} />
           <Stack.Screen name="ana" options={{ title: 'Çiftliğim', headerBackVisible: false }} />
           <Stack.Screen name="tarim" options={{ title: 'Tarım' }} />
