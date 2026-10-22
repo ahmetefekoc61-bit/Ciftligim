@@ -78,10 +78,12 @@ export function matchTags<T>(candidates: string[], items: T[], getTag: (t: T) =>
         const m = Math.min(d, dd);
         if (m === 1 && tagDigits.length >= 5) { score = 90; label = '1 karakter farklı'; }
         else if (cDigits.length >= 5 && tagDigits.endsWith(cDigits)) { score = 80; label = 'Son rakamlar tutuyor'; }
-        else if (cDigits.length >= 6 && tagDigits.length > cDigits.length &&
+        else if (cDigits.length >= 5 && tagDigits.length > cDigits.length &&
                  levenshtein(cDigits, tagDigits.slice(-cDigits.length)) <= 1) { score = 78; label = 'Son rakamlar benziyor'; }
         else if (m === 2 && tagDigits.length >= 8) { score = 75; label = '2 karakter farklı'; }
         else if (cDigits.length >= 6 && tagDigits.length >= 6 && cDigits.slice(-6) === tagDigits.slice(-6)) { score = 72; label = 'Son 6 rakam tutuyor'; }
+        else if (cDigits.length >= 5 && tagDigits.length >= cDigits.length &&
+                 levenshtein(cDigits, tagDigits.slice(-cDigits.length)) === 2) { score = 65; label = 'Son rakamlarda 2 fark'; }
       }
       const prev = best.get(item);
       if (score > 0 && (!prev || score > prev.score)) best.set(item, { item, tag, candidate: c, score, label });

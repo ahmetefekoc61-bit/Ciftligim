@@ -17,7 +17,10 @@ async function extractTextFromImage(uri: string): Promise<string[]> {
 
 async function extractTextOnServer(uri: string): Promise<string[]> {
   // Dosya yükleme (multipart) bazı cihazlarda takılıyor; fotoğrafı metin (base64) olarak gönderiyoruz
-  const image = await new FsFile(uri).base64();
+  // Sunucu yavaş: 1000 px yeterli, gönderim de küçülür
+  const small = await (await ImageManipulator.manipulate(uri).resize({ width: 1000 }).renderAsync())
+    .saveAsync({ format: SaveFormat.JPEG, compress: 0.85 });
+  const image = await new FsFile(small.uri).base64();
   const r = await api.post<{ lines: string[] }>('/api/ocr/base64', { image });
   return r?.lines ?? [];
 }

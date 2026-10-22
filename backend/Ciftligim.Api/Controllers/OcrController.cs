@@ -50,25 +50,37 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
         {
             await System.IO.File.WriteAllBytesAsync(path, bytes, ct);
             var lines = new List<string>();
-            // Önce görüntüyü temizle (gri, gürültü azalt, kontrast aç, siyah-beyaz yap), sonra oku.
-            // İki farklı temizleme × iki okuma modu: silik/eğik küpelerde en az biri genelde tutar.
-            var variants = new[]
+            // Ücretsiz sunucu çok yavaş: önce tek hızlı deneme, numara çıkmazsa ikinci deneme.
+            // Hiçbir durumda 500 dönmesin: zaman aşımı/hata olursa o ana kadar okunanı döndür.
+            using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            budget.CancelAfter(TimeSpan.FromSeconds(55));
+            var attempts = new[]
             {
-                ("a", new[] { "-colorspace", "Gray", "-median", "5", "-normalize", "-threshold", "45%" }, new[] { "6", "11" }),
-                ("b", new[] { "-colorspace", "Gray", "-median", "5", "-normalize", "-lat", "60x60-8%" }, new[] { "6" }),
+                ("a", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-median", "3", "-normalize", "-threshold", "35%" }, "6"),
+                ("c", new[] { "-resize", "1000x1000>", "-colorspace", "Gray", "-normalize" }, "11"),
             };
-            foreach (var (name, convertArgs, psms) in variants)
+            string? lastError = null;
+            foreach (var (name, convertArgs, psm) in attempts)
             {
-                var pre = Path.ChangeExtension(path, $".{name}.png");
-                temps.Add(pre);
-                if (!await Run("convert", [path, .. convertArgs, pre], ct)) pre = path;   // ImageMagick yoksa ham fotoğraf
-                foreach (var psm in psms)
+                if (budget.IsCancellationRequested) break;
+                try
                 {
-                    var text = await RunTesseract(pre, psm, ct);
+                    var pre = Path.ChangeExtension(path, $".{name}.png");
+                    temps.Add(pre);
+                    if (!await Run("convert", [path, .. convertArgs, pre], budget.Token)) pre = path;
+                    var text = await RunTesseract(pre, psm, budget.Token);
                     if (text is null) return StatusCode(503, new { hata = "Sunucuda yazı okuma kurulu değil." });
                     lines.AddRange(text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    if (lines.Any(l => l.Count(char.IsDigit) >= 4)) break;   // numara çıktı, yeter
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex.GetType().Name;
+                    log.LogWarning(ex, "OCR denemesi {Name} başarısız", name);
                 }
             }
+            if (lines.Count == 0 && lastError is not null)
+                return StatusCode(504, new { hata = "Sunucu yazıyı zamanında okuyamadı. Küpeyi çerçeveye yaklaştırıp tekrar dene." });
             return Ok(new { lines = lines.Distinct().ToList() });
         }
         finally
@@ -90,7 +102,8 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
             _ = p.StandardOutput.ReadToEndAsync(timeout.Token);
             _ = p.StandardError.ReadToEndAsync(timeout.Token);
-            await p.WaitForExitAsync(timeout.Token);
+            try { await p.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) { try { p.Kill(true); } catch { } throw; }
             return p.ExitCode == 0;
         }
         catch (System.ComponentModel.Win32Exception)
@@ -115,10 +128,11 @@ public class OcrController(ILogger<OcrController> log) : ControllerBase
             using var p = Process.Start(psi);
             if (p is null) return null;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(40));
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
             var stdout = p.StandardOutput.ReadToEndAsync(timeout.Token);
             var stderr = p.StandardError.ReadToEndAsync(timeout.Token);
-            await p.WaitForExitAsync(timeout.Token);
+            try { await p.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) { try { p.Kill(true); } catch { } throw; }
             var err = await stderr;
             if (p.ExitCode != 0) log.LogWarning("tesseract çıkış {Code}: {Err}", p.ExitCode, err);
             return await stdout;
